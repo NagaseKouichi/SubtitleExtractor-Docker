@@ -1,6 +1,18 @@
 #!/bin/bash
 set -e
 
+USER=dockeruser
+
+echo "---Checking if UID: ${UID} matches user---"
+usermod -o -u ${UID} ${USER}
+echo "---Checking if GID: ${GID} matches user---"
+groupmod -o -g ${GID} ${USER} > /dev/null 2>&1 ||:
+usermod -g ${GID} ${USER}
+echo "---Setting umask to ${UMASK}---"
+umask ${UMASK}
+
+chown -R ${UID}:${GID} /data
+
 extractSubsAndAttachments() {
     file="${1}"
     basename="${1%.*}"
@@ -8,11 +20,11 @@ extractSubsAndAttachments() {
     originaldir=$(pwd)
 
     if [[ ! -z $SUBFOLDER ]]; then
-        mkdir -p $SUBFOLDER
+        gosu ${USER} mkdir -p $SUBFOLDER
         cd $SUBFOLDER
     fi
 
-    mkdir -p "$basename"
+    gosu ${USER} mkdir -p "$basename"
     cd "$basename"
 
     subsmappings=$(ffprobe -loglevel error -select_streams s -show_entries stream=index,codec_name:stream_tags=language,title -of csv=p=0 "${originaldir}/${file}")
@@ -45,14 +57,14 @@ extractSubsAndAttachments() {
 
         echo "Extracting ${lang} subtitle #${idx} named '$title' to .${EXT}, from ${file}"
         formattedTitle="${title//[^[:alnum:] -]/}" #We format the track title to avoid issues using it in a filename.
-        ffmpeg -y -nostdin -hide_banner -loglevel error -i \
+        gosu ${USER} ffmpeg -y -nostdin -hide_banner -loglevel error -i \
         "${originaldir}/${file}" -map 0:"$idx" "${forceArgument[@]}" "${formattedTitle}_${idx}_${lang}_${basename}.${EXT}"
         # The -y option replaces existing files.
 
     done <<<"${subsmappings}")
 
     echo "Dumping attachments from $file"
-    ffmpeg -nostdin -hide_banner -loglevel quiet -dump_attachment:t "" -i "${originaldir}/${file}" || true #"One or more attachments could not be extracted."
+    gosu ${USER} ffmpeg -nostdin -hide_banner -loglevel quiet -dump_attachment:t "" -i "${originaldir}/${file}" || true #"One or more attachments could not be extracted."
     # Despite successful extraction, the error "At least one output file must be specified" seems to always appear.
     # The "|| true" part allows us to continue the script regardless.
 

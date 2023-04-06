@@ -58,9 +58,14 @@ RUN wget -q -O source_ffmpeg.tar.bz2 "https://ffmpeg.org/releases/ffmpeg-${FFMPE
   cd .. && rm -rf *
 
 
-FROM alpine:3.12
+FROM ghcr.io/vergilgao/alpine-baseimage
 
-RUN apk add -q --no-cache bash
+RUN apk add -q --no-cache bash && \
+    useradd -d /data -s /bin/bash dockeruser
+
+ENV UID=99
+ENV GID=100
+ENV UMASK=002
 
 COPY --from=builder "/ffmpeg_bins" "/usr/bin/"
 
